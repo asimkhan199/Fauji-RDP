@@ -104,8 +104,8 @@ Ok "MT5: $mt5Exe"
 
 # 4) Python packages
 Section "Installing Python packages"
-& $py -m pip install --upgrade pip --quiet
-& $py -m pip install -r "$InstallDir\requirements.txt" --quiet
+& $py -m pip install --upgrade pip
+& $py -m pip install -r "$InstallDir\requirements.txt"
 if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 Ok "Packages installed"
 
