@@ -14,13 +14,17 @@ from .paths import CONFIG_PATH
 class BotConfig(BaseModel):
     # Required — bot crashes without it
     magic_number: int = Field(..., ge=1, le=2_147_483_647)
+
+    # All keys read by FaujiBot.py:20-36 (default_config) — defaults match the bot.
+    bot_type: str = "FaujiBot"
     symbol: str = Field(default="XAUUSDm", min_length=1, max_length=32)
     hedge_file_code: str = Field(default="ASP-ADEEL-D", min_length=1, max_length=64)
-
-    # Common knobs (sane defaults from FaujiBot.py:20-36)
+    max_allowed_drawdown_percent: float = Field(default=100.0, ge=0.0, le=100.0)
     lock_magic_number: bool = True
-    max_allowed_grids: int = Field(default=1, ge=1, le=10)
+    check_interval_seconds: float = Field(default=0.1, ge=0.01, le=60.0)
+    grid_trailing_drop_percent: float = Field(default=30.0, ge=0.0, le=100.0)
     net_profit_target_usd: float = Field(default=5.0, ge=0.1, le=10000.0)
+    max_allowed_grids: int = Field(default=1, ge=1, le=10)
     initial_lot_size: float = Field(default=0.1, ge=0.01, le=100.0)
 
     # Free-form passthrough so the UI can edit any other field the bot reads
@@ -46,7 +50,12 @@ def load() -> BotConfig | None:
         return None
     with _lock, CONFIG_PATH.open("r", encoding="utf-8") as f:
         raw = json.load(f)
-    return BotConfig(**raw)
+    cfg = BotConfig(**raw)
+    # Auto-heal: rewrite the file if new defaults were added since it was saved.
+    if json.dumps(cfg.model_dump(), sort_keys=True) != json.dumps(raw, sort_keys=True):
+        with _lock, CONFIG_PATH.open("w", encoding="utf-8") as f:
+            json.dump(cfg.model_dump(), f, indent=2)
+    return cfg
 
 
 def save(cfg: BotConfig) -> None:
