@@ -1,0 +1,20 @@
+# Build artifacts (huge files, don't commit)
+installer/python/
+installer/wheels/
+installer/Output/
+installer/mt5setup.exe
+installer/innosetup-*.exe
+installer/get-pip.py
+
+# Local dev
+.venv/
+__pycache__/
+*.pyc
+
+# Runtime data
+data/
+supervisor/certs/
+
+# OS junk
+Thumbs.db
+.DS_Store

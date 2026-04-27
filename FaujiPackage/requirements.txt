@@ -1,0 +1,13 @@
+MetaTrader5==5.0.45
+pandas==2.2.3
+pandas_ta==0.3.14b0
+numpy==1.26.4
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+websockets==13.1
+pydantic==2.10.3
+bcrypt==4.2.1
+PyJWT==2.10.1
+cryptography==44.0.0
+jinja2==3.1.4
+python-multipart==0.0.20

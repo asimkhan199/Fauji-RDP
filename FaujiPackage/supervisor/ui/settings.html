@@ -1,0 +1,126 @@
+{% extends "_base.html" %}
+{% block title %}Settings · FaujiBot{% endblock %}
+{% block body %}
+<div class="shell">
+  <div class="topbar">
+    <h1>Settings</h1>
+    <div class="grow"></div>
+    <a href="/">← Dashboard</a>
+  </div>
+
+  <div class="banner warn">Some fields (magic number, symbol, hedge file code) are read once when the bot starts. Change them only with the bot stopped, then click ▶ Play.</div>
+
+  <div class="card">
+    <form id="f">
+      <label>Magic number</label>
+      <input class="input" type="number" name="magic_number" required>
+
+      <label>Symbol</label>
+      <input class="input" type="text" name="symbol" required>
+
+      <label>Hedge file code</label>
+      <input class="input" type="text" name="hedge_file_code" required>
+
+      <div class="row">
+        <div>
+          <label>Initial lot size</label>
+          <input class="input" type="number" step="0.01" name="initial_lot_size" min="0.01">
+        </div>
+        <div>
+          <label>Net profit target (USD)</label>
+          <input class="input" type="number" step="0.1" name="net_profit_target_usd" min="0.1">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Max allowed grids</label>
+          <input class="input" type="number" name="max_allowed_grids" min="1" max="10">
+        </div>
+        <div>
+          <label>Lock magic number</label>
+          <select class="input" name="lock_magic_number">
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+      </div>
+
+      <h2 style="margin-top:18px">Advanced (raw key/value)</h2>
+      <p class="muted" style="font-size:13px">Adds extra keys to config.json that the bot may read directly. Leave empty if unsure.</p>
+      <div id="extras"></div>
+      <button type="button" class="btn" style="margin-top:8px" id="add-extra">+ Add field</button>
+
+      <div id="err" class="banner bad" style="display:none;margin-top:14px"></div>
+      <div id="ok"  class="banner"     style="display:none;margin-top:14px;border-color:rgba(41,194,129,0.4);color:var(--good)">Saved.</div>
+      <div class="step-nav"><button class="btn play" type="submit">Save</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const f = document.getElementById("f");
+const extras = document.getElementById("extras");
+
+function addExtraRow(k = "", v = "") {
+  const row = document.createElement("div");
+  row.className = "row";
+  row.style.marginTop = "8px";
+  row.innerHTML = `
+    <input class="input ex-k" placeholder="key" value="${k.replace(/"/g,"&quot;")}">
+    <input class="input ex-v" placeholder="value" value="${String(v).replace(/"/g,"&quot;")}">
+    <button type="button" class="btn" style="flex:0 0 auto;padding:0 14px">×</button>`;
+  row.querySelector("button").onclick = () => row.remove();
+  extras.appendChild(row);
+}
+document.getElementById("add-extra").onclick = () => addExtraRow();
+
+(async () => {
+  try {
+    const { config } = await api("/api/config");
+    if (!config) return;
+    for (const k of Object.keys(config)) {
+      const el = f.querySelector(`[name="${k}"]`);
+      if (el) {
+        if (el.type === "checkbox") el.checked = !!config[k];
+        else if (el.tagName === "SELECT") el.value = String(config[k]);
+        else el.value = config[k] ?? "";
+      }
+    }
+    const ex = config.extra || {};
+    Object.entries(ex).forEach(([k, v]) => addExtraRow(k, typeof v === "object" ? JSON.stringify(v) : v));
+  } catch (e) { console.warn(e); }
+})();
+
+f.onsubmit = async (e) => {
+  e.preventDefault();
+  const err = document.getElementById("err"); const ok = document.getElementById("ok");
+  err.style.display = "none"; ok.style.display = "none";
+  const fd = new FormData(f);
+  const payload = {};
+  for (const [k, v] of fd.entries()) {
+    if (k === "lock_magic_number") payload[k] = (v === "true");
+    else if (["magic_number","max_allowed_grids"].includes(k)) payload[k] = parseInt(v, 10);
+    else if (["initial_lot_size","net_profit_target_usd"].includes(k)) payload[k] = parseFloat(v);
+    else payload[k] = v;
+  }
+  // extras
+  $$(".ex-k").forEach((kEl, i) => {
+    const k = kEl.value.trim(); if (!k) return;
+    const v = $$(".ex-v")[i].value;
+    let parsed = v;
+    if (v === "true") parsed = true;
+    else if (v === "false") parsed = false;
+    else if (!isNaN(Number(v)) && v.trim() !== "") parsed = Number(v);
+    else { try { parsed = JSON.parse(v); } catch {} }
+    payload[k] = parsed;
+  });
+  try {
+    await api("/api/config", { method: "POST", body: payload });
+    ok.style.display = "block";
+  } catch (ex) { err.textContent = ex.message; err.style.display = "block"; }
+};
+</script>
+{% endblock %}

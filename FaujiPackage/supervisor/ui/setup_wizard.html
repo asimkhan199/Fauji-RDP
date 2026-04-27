@@ -1,0 +1,127 @@
+{% extends "_base.html" %}
+{% block title %}Setup · FaujiBot{% endblock %}
+{% block body %}
+<div class="shell">
+  <div class="topbar"><h1>FaujiBot — First-time setup</h1></div>
+
+  {% if phone_url_hint %}
+  <div class="banner">📱 Phone URL after setup: <strong>{{ phone_url_hint }}</strong></div>
+  {% endif %}
+
+  <!-- Step 1: password -->
+  <div class="card step {% if not password_set %}active{% endif %}" id="step-pw">
+    <h2>1 / 3 — Set dashboard password</h2>
+    <form id="f-pw">
+      <label>New password (≥ 6 chars)</label>
+      <input class="input" type="password" name="password" autocomplete="new-password" required>
+      <label>Confirm</label>
+      <input class="input" type="password" name="confirm" autocomplete="new-password" required>
+      <div id="err-pw" class="banner bad" style="display:none;margin-top:10px"></div>
+      <div class="step-nav"><button class="btn play" type="submit">Save & continue</button></div>
+    </form>
+  </div>
+
+  <!-- Step 2: bot config -->
+  <div class="card step {% if password_set and not configured %}active{% endif %}" id="step-cfg">
+    <h2>2 / 3 — Bot configuration</h2>
+    <form id="f-cfg">
+      <label>Magic number <span class="muted">(required, integer)</span></label>
+      <input class="input" type="number" name="magic_number" min="1" required placeholder="e.g. 121222">
+
+      <label>Symbol</label>
+      <input class="input" type="text" name="symbol" value="XAUUSDm" required>
+
+      <label>Hedge file code</label>
+      <input class="input" type="text" name="hedge_file_code" value="ASP-ADEEL-D" required>
+
+      <div class="row">
+        <div>
+          <label>Initial lot size</label>
+          <input class="input" type="number" step="0.01" name="initial_lot_size" value="0.1" min="0.01">
+        </div>
+        <div>
+          <label>Net profit target (USD)</label>
+          <input class="input" type="number" step="0.1" name="net_profit_target_usd" value="5" min="0.1">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Max allowed grids</label>
+          <input class="input" type="number" name="max_allowed_grids" value="1" min="1" max="10">
+        </div>
+        <div>
+          <label>Lock magic number</label>
+          <select class="input" name="lock_magic_number">
+            <option value="true" selected>Yes (recommended)</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="err-cfg" class="banner bad" style="display:none;margin-top:10px"></div>
+      <div class="step-nav"><button class="btn play" type="submit">Save & continue</button></div>
+    </form>
+  </div>
+
+  <!-- Step 3: broker login -->
+  <div class="card step {% if password_set and configured %}active{% endif %}" id="step-mt5">
+    <h2>3 / 3 — Log into your broker (MT5)</h2>
+    <p class="muted">MT5 was installed silently. Open it and log into your broker once — this is the only manual step. Brokers do not allow credential automation.</p>
+    <ol style="line-height:1.7">
+      <li>On the RDP desktop, open <strong>MetaTrader 5</strong>.</li>
+      <li>File → Login to Trade Account → enter your broker's <em>server</em>, <em>login</em>, and <em>password</em>.</li>
+      <li>Make sure the symbol <strong id="cfg-symbol">XAUUSDm</strong> appears in Market Watch.</li>
+      <li>Come back here and click <em>Start bot</em>.</li>
+    </ol>
+    <div id="err-go" class="banner bad" style="display:none"></div>
+    <div class="step-nav">
+      <button class="btn play" id="btn-go">▶ Start bot</button>
+      <a class="btn" href="/" style="text-align:center;text-decoration:none;line-height:1">Open dashboard</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showStep(id) { $$(".step").forEach(s => s.classList.remove("active")); $("#"+id).classList.add("active"); }
+
+document.getElementById("f-pw").onsubmit = async (e) => {
+  e.preventDefault();
+  const err = $("#err-pw"); err.style.display = "none";
+  const fd = new FormData(e.target);
+  const r = await fetch("/setup/password", { method: "POST", body: fd, credentials: "same-origin" });
+  const data = await r.json();
+  if (!r.ok || !data.ok) { err.textContent = data.error || "Failed."; err.style.display = "block"; return; }
+  // Auto-login so we have a cookie for /setup/config
+  const lf = new FormData(); lf.set("password", fd.get("password"));
+  await fetch("/login", { method: "POST", body: lf, credentials: "same-origin" });
+  showStep("step-cfg");
+};
+
+document.getElementById("f-cfg").onsubmit = async (e) => {
+  e.preventDefault();
+  const err = $("#err-cfg"); err.style.display = "none";
+  const fd = new FormData(e.target);
+  const payload = {};
+  for (const [k, v] of fd.entries()) {
+    if (k === "lock_magic_number") payload[k] = (v === "true");
+    else if (["magic_number","max_allowed_grids"].includes(k)) payload[k] = parseInt(v, 10);
+    else if (["initial_lot_size","net_profit_target_usd"].includes(k)) payload[k] = parseFloat(v);
+    else payload[k] = v;
+  }
+  try {
+    await api("/setup/config", { method: "POST", body: payload });
+    $("#cfg-symbol").textContent = payload.symbol || "XAUUSDm";
+    showStep("step-mt5");
+  } catch (ex) { err.textContent = ex.message; err.style.display = "block"; }
+};
+
+document.getElementById("btn-go").onclick = async () => {
+  const err = $("#err-go"); err.style.display = "none";
+  try { await api("/control/play", { method: "POST" }); location.href = "/"; }
+  catch (ex) { err.textContent = ex.message + " — make sure MT5 is open and logged in."; err.style.display = "block"; }
+};
+</script>
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "_base.html" %}
+{% block title %}FaujiBot Dashboard{% endblock %}
+{% block body %}
+<div class="shell">
+  <div class="topbar">
+    <h1>FaujiBot</h1>
+    <span id="state-pill" class="pill stopped">—</span>
+    <div class="grow"></div>
+    <a href="/settings">Settings</a>
+    <a href="#" id="logout">Logout</a>
+  </div>
+
+  {% if phone_url_hint %}
+  <div class="banner">📱 Phone URL: <strong>{{ phone_url_hint }}</strong> — open AWS Security Group inbound TCP 8443 from your phone IP.</div>
+  {% endif %}
+
+  <div id="error-banner" class="banner bad" style="display:none"></div>
+
+  <div class="card">
+    <h2>Equity</h2>
+    <div class="big" id="equity">—</div>
+    <div class="kv" style="margin-top:8px">
+      <div class="k">Balance</div><div class="v" id="balance">—</div>
+      <div class="k">Free margin</div><div class="v" id="margin_free">—</div>
+      <div class="k">Initial</div><div class="v" id="initial_equity">—</div>
+      <div class="k">Peak</div><div class="v" id="bot_peak_equity">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Market</h2>
+    <div class="kv">
+      <div class="k">Symbol bid / ask</div><div class="v"><span id="bid">—</span> / <span id="ask">—</span></div>
+      <div class="k">Behavior</div><div class="v" id="market_behavior">—</div>
+      <div class="k">Trend</div><div class="v" id="market_broader_trend">—</div>
+      <div class="k">Condition</div><div class="v" id="market_condition">—</div>
+      <div class="k">Hedge baskets</div><div class="v" id="hedge_baskets">0</div>
+      <div class="k">Uptime</div><div class="v" id="uptime">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Open positions</h2>
+    <table class="positions" id="positions-tbl">
+      <thead>
+        <tr><th>Type</th><th>Vol</th><th>Open</th><th>Now</th><th class="num">P/L</th><th>Comment</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="empty" id="positions-empty">No open positions.</div>
+  </div>
+
+  <div class="card">
+    <h2>Logs</h2>
+    <div class="logs" id="logs"></div>
+  </div>
+
+  <footer>FaujiBot supervisor v0.1 · bot logic is unmodified</footer>
+</div>
+
+<div class="controls">
+  <div class="max">
+    <button class="btn play"  id="btn-play">▶ Play</button>
+    <button class="btn pause" id="btn-pause">⏸ Pause</button>
+    <button class="btn stop"  id="btn-stop">⏹ Stop</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const pill = document.getElementById("state-pill");
+const errBanner = document.getElementById("error-banner");
+
+function setEl(id, val) { const e = document.getElementById(id); if (e) e.textContent = val; }
+
+function applySnapshot(snap) {
+  if (!snap) return;
+  pill.textContent = snap.state || "—";
+  pill.className = "pill " + (snap.state || "stopped");
+  if (snap.error) { errBanner.textContent = "Error: " + snap.error; errBanner.style.display = "block"; }
+  else { errBanner.style.display = "none"; }
+
+  const cur = snap.currency || "USD";
+  setEl("equity",   fmtMoney(snap.equity, cur));
+  setEl("balance",  fmtMoney(snap.balance, cur));
+  setEl("margin_free", fmtMoney(snap.margin_free, cur));
+  setEl("initial_equity",  fmtMoney(snap.initial_equity, cur));
+  setEl("bot_peak_equity", fmtMoney(snap.bot_peak_equity, cur));
+  setEl("bid", fmtNum(snap.bid, 3));
+  setEl("ask", fmtNum(snap.ask, 3));
+  setEl("market_behavior",       snap.market_behavior || "—");
+  setEl("market_broader_trend",  snap.market_broader_trend || "—");
+  setEl("market_condition",      snap.market_condition || "—");
+  setEl("hedge_baskets",         snap.hedge_baskets ?? 0);
+  setEl("uptime",                fmtUptime(snap.uptime_s));
+
+  const tbody = document.querySelector("#positions-tbl tbody");
+  const empty = document.getElementById("positions-empty");
+  const rows = (snap.positions || []);
+  tbody.innerHTML = rows.map(p => `
+    <tr>
+      <td>${p.type}</td>
+      <td>${fmtNum(p.volume, 2)}</td>
+      <td>${fmtNum(p.price_open, 3)}</td>
+      <td>${fmtNum(p.price_current, 3)}</td>
+      <td class="num ${p.profit >= 0 ? 'good' : 'bad'}">${fmtMoney(p.profit, cur)}</td>
+      <td class="muted">${(p.comment||"").substring(0,28)}</td>
+    </tr>`).join("");
+  empty.style.display = rows.length ? "none" : "block";
+
+  const btnPlay  = document.getElementById("btn-play");
+  const btnPause = document.getElementById("btn-pause");
+  const btnStop  = document.getElementById("btn-stop");
+  const running = (snap.state === "running");
+  btnPlay.disabled  = running || snap.state === "starting";
+  btnPause.disabled = !running;
+  btnStop.disabled  = (snap.state === "stopped");
+}
+
+function applyLogs(logs) {
+  const el = document.getElementById("logs");
+  if (!Array.isArray(logs)) return;
+  const wasBottom = (el.scrollTop + el.clientHeight) >= (el.scrollHeight - 4);
+  el.innerHTML = logs.map(l => `<div>${l.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</div>`).join("");
+  if (wasBottom) el.scrollTop = el.scrollHeight;
+}
+
+document.getElementById("btn-play").onclick  = async () => { try { await api("/control/play",  {method:"POST"}); } catch(e){ alert(e.message); } };
+document.getElementById("btn-pause").onclick = async () => { try { await api("/control/pause", {method:"POST"}); } catch(e){ alert(e.message); } };
+document.getElementById("btn-stop").onclick  = async () => { if (!confirm("Stop the bot? Existing positions stay open.")) return; try { await api("/control/stop", {method:"POST"}); } catch(e){ alert(e.message); } };
+document.getElementById("logout").onclick    = async (ev) => { ev.preventDefault(); await api("/logout", {method:"POST"}); location.href = "/login"; };
+
+startLiveStream(({snapshot, logs}) => { applySnapshot(snapshot); applyLogs(logs); });
+api("/api/snapshot").then(({snapshot, logs}) => { applySnapshot(snapshot); applyLogs(logs); }).catch(()=>{});
+</script>
+{% endblock %}

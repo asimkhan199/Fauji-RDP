@@ -1,0 +1,36 @@
+{% extends "_base.html" %}
+{% block title %}Login · FaujiBot{% endblock %}
+{% block body %}
+<div class="center-shell">
+  <div class="card auth-card">
+    <h1 style="margin-top:0;font-size:20px">FaujiBot</h1>
+    <p class="muted" style="margin-top:0">Enter the dashboard password.</p>
+    <form id="f">
+      <label for="pw">Password</label>
+      <input class="input" id="pw" name="password" type="password" autocomplete="current-password" autofocus>
+      <div id="err" class="banner bad" style="display:none;margin-top:12px"></div>
+      <div class="step-nav">
+        <button class="btn play" type="submit">Sign in</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.getElementById("f").onsubmit = async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const err = document.getElementById("err");
+  err.style.display = "none";
+  try {
+    const r = await fetch("/login", { method: "POST", body: fd, credentials: "same-origin" });
+    const data = await r.json();
+    if (!r.ok || !data.ok) { err.textContent = data.error || "Login failed."; err.style.display = "block"; return; }
+    location.href = "/";
+  } catch (e2) {
+    err.textContent = e2.message; err.style.display = "block";
+  }
+};
+</script>
+{% endblock %}
