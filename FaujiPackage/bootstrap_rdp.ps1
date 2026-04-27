@@ -46,8 +46,17 @@ New-Item -ItemType Directory -Path $extractRoot | Out-Null
 
 Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
 Expand-Archive -Path $zipPath -DestinationPath $extractRoot -Force
-$srcDir = Get-ChildItem $extractRoot -Directory | Select-Object -First 1
-Ok "Source extracted to $($srcDir.FullName)"
+$topDir = Get-ChildItem $extractRoot -Directory | Select-Object -First 1
+# The repo may contain FaujiPackage/ as a subfolder OR have files at the root.
+# Detect which by looking for supervisor/ in either location.
+$srcDir = $topDir
+if (Test-Path (Join-Path $topDir.FullName "FaujiPackage\supervisor")) {
+  $srcDir = Get-Item (Join-Path $topDir.FullName "FaujiPackage")
+}
+if (-not (Test-Path (Join-Path $srcDir.FullName "supervisor"))) {
+  throw "Could not find 'supervisor' folder in the downloaded repo. Check repo structure."
+}
+Ok "Source: $($srcDir.FullName)"
 
 # Copy to install dir (preserve user's data\ if it already exists)
 Section "Copying files to $InstallDir"
