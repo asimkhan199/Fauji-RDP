@@ -129,7 +129,7 @@ function applyLogs(logs) {
 
 document.getElementById("btn-play").onclick  = async () => { try { await api("/control/play",  {method:"POST"}); } catch(e){ alert(e.message); } };
 document.getElementById("btn-pause").onclick = async () => { try { await api("/control/pause", {method:"POST"}); } catch(e){ alert(e.message); } };
-document.getElementById("btn-stop").onclick  = async () => { if (!confirm("Stop the bot? Existing positions stay open.")) return; try { await api("/control/stop", {method:"POST"}); } catch(e){ alert(e.message); } };
+document.getElementById("btn-stop").onclick  = async () => { try { await api("/control/stop",  {method:"POST"}); } catch(e){ alert(e.message); } };
 document.getElementById("logout").onclick    = async (ev) => { ev.preventDefault(); await api("/logout", {method:"POST"}); location.href = "/login"; };
 
 startLiveStream(({snapshot, logs}) => { applySnapshot(snapshot); applyLogs(logs); });
