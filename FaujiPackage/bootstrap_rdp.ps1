@@ -128,14 +128,18 @@ Ok "Launcher: $InstallDir\FaujiBot.cmd"
 
 # 6) Scheduled Task — auto-start on logon
 Section "Registering Scheduled Task (auto-start on logon)"
-schtasks /Delete /F /TN "FaujiBot" 2>$null | Out-Null
-schtasks /Create /F /SC ONLOGON /RL HIGHEST /TN "FaujiBot" /TR "`"$InstallDir\FaujiBot.cmd`"" | Out-Null
+# /F overwrites if it already exists; no need to delete first.
+$prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+cmd.exe /c "schtasks /Create /F /SC ONLOGON /RL HIGHEST /TN ""FaujiBot"" /TR ""\""$InstallDir\FaujiBot.cmd\""""" 2>&1 | Out-Null
+$ErrorActionPreference = $prev
 Ok "Task 'FaujiBot' registered"
 
 # 7) Firewall rule
 Section "Opening Windows firewall port 8443"
-netsh advfirewall firewall delete rule name="FaujiBot Dashboard" 2>$null | Out-Null
-netsh advfirewall firewall add rule name="FaujiBot Dashboard" dir=in action=allow protocol=TCP localport=8443 | Out-Null
+$prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+cmd.exe /c "netsh advfirewall firewall delete rule name=""FaujiBot Dashboard""" 2>&1 | Out-Null
+cmd.exe /c "netsh advfirewall firewall add rule name=""FaujiBot Dashboard"" dir=in action=allow protocol=TCP localport=8443" 2>&1 | Out-Null
+$ErrorActionPreference = $prev
 Ok "Local firewall: TCP 8443 inbound allowed"
 
 # 8) Detect public IP for the AWS Security Group reminder
