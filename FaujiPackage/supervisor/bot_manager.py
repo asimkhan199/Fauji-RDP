@@ -210,6 +210,23 @@ class BotManager:
                 self._state = "error"
                 return
 
+            # Hard safety net: inject every key the bot's default_config has,
+            # in case config.json was written before these keys existed.
+            _bot_defaults = {
+                "bot_type": "FaujiBot",
+                "symbol": "XAUUSDm",
+                "hedge_file_code": "ASP-ADEEL-D",
+                "max_allowed_drawdown_percent": 100.0,
+                "lock_magic_number": True,
+                "check_interval_seconds": 0.1,
+                "grid_trailing_drop_percent": 30,
+                "net_profit_target_usd": 5,
+                "max_allowed_grids": 1,
+                "initial_lot_size": 0.1,
+            }
+            for k, v in _bot_defaults.items():
+                cfg_dict.setdefault(k, v)
+
             with redirect_stdout(self._stdout_redirect), redirect_stderr(self._stdout_redirect):
                 self._bot = BotCls(cfg_dict)
                 self._state = "running"
