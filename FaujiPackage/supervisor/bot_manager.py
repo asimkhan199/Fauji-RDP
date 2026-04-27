@@ -193,6 +193,23 @@ class BotManager:
         self._stdout_redirect = _RingLog(self._logs, BOT_LOG_PATH)
         try:
             BotCls = self._import_bot_class()
+            # Pre-flight: if MT5 isn't running / not logged in, fail fast with a
+            # clear message instead of letting the bot spin in a retry loop.
+            try:
+                import MetaTrader5 as mt5  # type: ignore
+                if not mt5.initialize():
+                    err = mt5.last_error()
+                    msg = (f"MT5 not ready ({err}). Open MetaTrader 5 from the "
+                           f"Start menu and log into your broker, then click Play again.")
+                    self._error = msg
+                    self._state = "error"
+                    print(f"[supervisor] {msg}", file=self._stdout_redirect)
+                    return
+            except Exception as e:
+                self._error = f"MT5 import failed: {e}"
+                self._state = "error"
+                return
+
             with redirect_stdout(self._stdout_redirect), redirect_stderr(self._stdout_redirect):
                 self._bot = BotCls(cfg_dict)
                 self._state = "running"

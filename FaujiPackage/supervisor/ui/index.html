@@ -113,9 +113,10 @@ function applySnapshot(snap) {
   const btnPause = document.getElementById("btn-pause");
   const btnStop  = document.getElementById("btn-stop");
   const running = (snap.state === "running");
-  btnPlay.disabled  = running || snap.state === "starting";
+  // Always allow Stop. Play disabled only while actually running. Pause active when running.
+  btnPlay.disabled  = running;
   btnPause.disabled = !running;
-  btnStop.disabled  = (snap.state === "stopped");
+  btnStop.disabled  = false;
 }
 
 function applyLogs(logs) {
